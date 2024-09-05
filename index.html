@@ -1,0 +1,520 @@
+<html><head><base href="https://websimcreation.com/cyber-warfare-sim/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全球網絡攻防模擬器 - 未來科技版</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    font-family: 'Orbitron', sans-serif;
+    background-color: #000;
+    color: #0ff;
+  }
+  #main-container {
+    display: flex;
+    height: 100%;
+  }
+  #map-container {
+    flex: 3;
+    height: 100%;
+    background-color: #001a33;
+    position: relative;
+    border: 2px solid #0ff;
+    box-shadow: 0 0 20px #0ff;
+  }
+  .country {
+    fill: #003366;
+    stroke: #00ffff;
+    stroke-width: 0.5;
+    filter: drop-shadow(0 0 2px #00ffff);
+  }
+  .team-panel {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    background-color: #001a33;
+    border: 2px solid #0ff;
+  }
+  #red-team { border-right: none; }
+  #blue-team { border-left: none; }
+  .attack-line, .defend-line {
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  .team-marker {
+    fill-opacity: 0.7;
+    stroke: #fff;
+    stroke-width: 1;
+    filter: drop-shadow(0 0 5px #fff);
+  }
+  .log-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    margin-top: 10px;
+    border: 1px solid #0ff;
+    padding: 5px;
+    background-color: rgba(0, 255, 255, 0.1);
+  }
+  .log-entry {
+    margin-bottom: 5px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+    padding-bottom: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  .log-entry:hover {
+    background-color: rgba(0, 255, 255, 0.2);
+  }
+  button {
+    background-color: #0066cc;
+    border: none;
+    color: #fff;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-family: 'Orbitron', sans-serif;
+    transition: all 0.3s;
+    text-shadow: 0 0 5px #fff;
+    box-shadow: 0 0 10px #0ff;
+  }
+  button:hover {
+    background-color: #0099ff;
+    box-shadow: 0 0 20px #0ff;
+  }
+  .country-label {
+    font-size: 10px;
+    pointer-events: none;
+    text-anchor: middle;
+    fill: #0ff;
+    font-weight: bold;
+    text-shadow: 0 0 3px #0ff;
+  }
+  #event-details {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: rgba(0, 26, 51, 0.9);
+    border-top: 2px solid #0ff;
+    padding: 20px;
+    box-shadow: 0 -2px 10px rgba(0, 255, 255, 0.5);
+    display: none;
+    max-height: 50%;
+    overflow-y: auto;
+  }
+  #details-content {
+    color: #0ff;
+    font-family: 'Orbitron', sans-serif;
+  }
+  .success {
+    color: #00ff00;
+  }
+  .failure {
+    color: #ff0000;
+  }
+  #close-details {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    font-size: 20px;
+    color: #0ff;
+  }
+  h2, h3, h4 {
+    color: #0ff;
+    text-shadow: 0 0 5px #0ff;
+  }
+  #score-display {
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #00ff00;
+    text-shadow: 0 0 5px #00ff00;
+  }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="main-container">
+    <div id="red-team" class="team-panel">
+      <h2>攻擊隊 (紅隊)</h2>
+      <button onclick="launchAttack()">發動攻擊</button>
+      <div id="attack-log" class="log-container"></div>
+    </div>
+    <div id="map-container"></div>
+    <div id="blue-team" class="team-panel">
+      <h2>防守隊 (藍隊)</h2>
+      <div id="score-display">防守分數: <span id="defense-score">0</span></div>
+      <div id="defense-options" style="display: none;">
+        <h3>選擇防守方式:</h3>
+        <select id="defense-select">
+          <option value="流量過濾">流量過濾</option>
+          <option value="輸入驗證">輸入驗證</option>
+          <option value="內容安全策略">內容安全策略</option>
+          <option value="記憶體保護">記憶體保護</option>
+          <option value="安全意識培訓">安全意識培訓</option>
+        </select>
+        <button onclick="submitDefense()">提交防守</button>
+      </div>
+      <div id="defense-log" class="log-container"></div>
+    </div>
+  </div>
+  <div id="event-details">
+    <span id="close-details" onclick="closeDetails()">&times;</span>
+    <h3>事件詳情</h3>
+    <div id="details-content"></div>
+  </div>
+
+  <defs>
+    <filter id="particle">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+      <feDisplacementMap in="SourceGraphic" scale="8"/>
+    </filter>
+  </defs>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <script>
+    const width = window.innerWidth * 0.6;
+    const height = window.innerHeight;
+    let defenseScore = 0;
+
+    const svg = d3.select("#map-container")
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height);
+
+    const projection = d3.geoMercator()
+      .scale(width / 2 / Math.PI)
+      .translate([width / 2, height / 2]);
+
+    const path = d3.geoPath().projection(projection);
+
+    let world;
+    let countryNames;
+    let currentAttack = null;
+
+    Promise.all([
+      d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"),
+      d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+    ]).then(function([worldData, namesData]) {
+      world = worldData;
+      countryNames = namesData;
+
+      svg.selectAll("path")
+        .data(topojson.feature(world, world.objects.countries).features)
+        .enter().append("path")
+        .attr("d", path)
+        .attr("class", "country");
+
+      const graticule = d3.geoGraticule();
+      svg.append("path")
+        .datum(graticule)
+        .attr("class", "graticule")
+        .attr("d", path)
+        .attr("fill", "none")
+        .attr("stroke", "#0ff")
+        .attr("stroke-width", 0.2)
+        .attr("stroke-opacity", 0.3);
+
+      const defs = svg.append("defs");
+      const glowFilter = defs.append("filter")
+        .attr("id", "glow");
+      glowFilter.append("feGaussianBlur")
+        .attr("stdDeviation", "2.5")
+        .attr("result", "coloredBlur");
+      const feMerge = glowFilter.append("feMerge");
+      feMerge.append("feMergeNode")
+        .attr("in", "coloredBlur");
+      feMerge.append("feMergeNode")
+        .attr("in", "SourceGraphic");
+
+      svg.selectAll("path")
+        .style("filter", "url(#glow)");
+
+      addScanningEffect();
+    });
+
+    const attackTypes = ["DDoS", "SQL注入", "跨站腳本攻擊", "緩衝區溢出", "社會工程"];
+    const attackLogEntries = [];
+    const defenseLogEntries = [];
+
+    function getRandomLocationOnLand() {
+      const features = topojson.feature(world, world.objects.countries).features;
+      const randomCountry = features[Math.floor(Math.random() * features.length)];
+      const bounds = path.bounds(randomCountry);
+      let point;
+      do {
+        const x = Math.random() * (bounds[1][0] - bounds[0][0]) + bounds[0][0];
+        const y = Math.random() * (bounds[1][1] - bounds[0][1]) + bounds[0][1];
+        point = projection.invert([x, y]);
+      } while (!d3.geoContains(randomCountry, point));
+      return { point: projection(point), country: randomCountry.properties.name };
+    }
+
+    function updateLog(entry, isAttack) {
+      const logEntries = isAttack ? attackLogEntries : defenseLogEntries;
+      const logContainer = isAttack ? document.getElementById("attack-log") : document.getElementById("defense-log");
+
+      logEntries.unshift(entry);
+      if (logEntries.length > 10) {
+        logEntries.pop();
+      }
+      logContainer.innerHTML = logEntries.map((entry, index) => 
+        `<div class="log-entry" onclick="showDetails(${isAttack}, ${index})">${entry.summary}</div>`
+      ).join("");
+    }
+
+    function showDetails(isAttack, index) {
+      const logEntries = isAttack ? attackLogEntries : defenseLogEntries;
+      const entry = logEntries[index];
+      document.getElementById("details-content").innerHTML = entry.details;
+      document.getElementById("event-details").style.display = "block";
+    }
+
+    function closeDetails() {
+      document.getElementById("event-details").style.display = "none";
+    }
+
+    function translateCountryName(englishName) {
+      const translations = {
+        "United States": "美國",
+        "China": "中國",
+        "Russia": "俄羅斯",
+        "Japan": "日本",
+        "Germany": "德國",
+        "United Kingdom": "英國",
+        "France": "法國",
+        "Italy": "義大利",
+        "Canada": "加拿大",
+        "Australia": "澳大利亞",
+        "India": "印度",
+        "Brazil": "巴西",
+        "South Korea": "南韓",
+        "Spain": "西班牙",
+        "Mexico": "墨西哥"
+      };
+      return translations[englishName] || englishName;
+    }
+
+    function getAttackOutcomeReason(success, attackType, defenseType) {
+      if (success) {
+        return `${attackType}成功突破了${defenseType}，造成系統漏洞。`;
+      } else {
+        return `${defenseType}成功阻擋了${attackType}，保護了系統安全。`;
+      }
+    }
+
+    function getDefenseOutcomeReason(success, attackType, defenseType) {
+      if (success) {
+        return `${defenseType}有效地抵禦了${attackType}，維護了系統完整性。`;
+      } else {
+        return `${defenseType}未能完全阻擋${attackType}，系統受到部分影響。`;
+      }
+    }
+
+    function createPulsingMarker(x, y, color) {
+      const marker = svg.append("g")
+        .attr("class", "team-marker");
+
+      marker.append("circle")
+        .attr("cx", x)
+        .attr("cy", y)
+        .attr("r", 5)
+        .attr("fill", color)
+        .attr("class", "team-marker");
+
+      function pulse() {
+        marker.select("circle")
+          .transition()
+          .duration(1000)
+          .attr("r", 8)
+          .transition()
+          .duration(1000)
+          .attr("r", 5)
+          .on("end", pulse);
+      }
+
+      pulse();
+    }
+
+    function launchAttack() {
+      const attacker = getRandomLocationOnLand();
+      const defender = getRandomLocationOnLand();
+      const attackType = attackTypes[Math.floor(Math.random() * attackTypes.length)];
+
+      svg.selectAll(".country-label").remove();
+
+      createPulsingMarker(attacker.point[0], attacker.point[1], "#ff3333");
+      createPulsingMarker(defender.point[0], defender.point[1], "#3333ff");
+
+      svg.append("text")
+        .attr("class", "country-label")
+        .attr("x", attacker.point[0])
+        .attr("y", attacker.point[1] - 10)
+        .text(translateCountryName(attacker.country));
+
+      svg.append("text")
+        .attr("class", "country-label")
+        .attr("x", defender.point[0])
+        .attr("y", defender.point[1] - 10)
+        .text(translateCountryName(defender.country));
+
+      const particleLine = svg.append("path")
+        .attr("class", "attack-line")
+        .attr("d", `M${attacker.point[0]},${attacker.point[1]} L${defender.point[0]},${defender.point[1]}`)
+        .attr("filter", "url(#particle)")
+        .attr("opacity", 0);
+
+      particleLine.transition()
+        .duration(2000)
+        .attr("opacity", 1)
+        .on("end", () => particleLine.remove());
+
+      const attackSummary = `從${translateCountryName(attacker.country)}發動${attackType}攻擊`;
+      const attackDetails = `
+        <h4>攻擊詳情</h4>
+        <p>攻擊類型：${attackType}</p>
+        <p>攻擊者IP：${generateRandomIP()}</p>
+        <p>攻擊者國家：${translateCountryName(attacker.country)}</p>
+        <p>攻擊者位置：(${attacker.point[0].toFixed(2)}, ${attacker.point[1].toFixed(2)})</p>
+        <p>目標國家：${translateCountryName(defender.country)}</p>
+        <p>目標IP：${generateRandomIP()}</p>
+      `;
+      updateLog({summary: attackSummary, details: attackDetails}, true);
+
+      currentAttack = { attacker, defender, attackType };
+
+      document.getElementById('defense-options').style.display = 'block';
+    }
+
+    function updateDefenseScore() {
+      document.getElementById('defense-score').textContent = defenseScore;
+    }
+
+    function submitDefense() {
+      if (!currentAttack) return;
+
+      const { attacker, defender, attackType } = currentAttack;
+      const defenseType = document.getElementById('defense-select').value;
+
+      const success = calculateDefenseSuccess(attackType, defenseType);
+      const outcome = success ? "成功" : "失敗";
+      const outcomeClass = success ? "success" : "failure";
+
+      if (success) {
+        defenseScore += 10; // Increment score by 10 for successful defense
+        updateDefenseScore();
+      }
+
+      const defenseSummary = `${translateCountryName(defender.country)}使用${defenseType}進行防禦 - ${outcome}`;
+      const defenseDetails = `
+        <h4>防禦詳情</h4>
+        <p>防禦類型：${defenseType}</p>
+        <p>防禦者IP：${generateRandomIP()}</p>
+        <p>防禦者國家：${translateCountryName(defender.country)}</p>
+        <p>防禦者位置：(${defender.point[0].toFixed(2)}, ${defender.point[1].toFixed(2)})</p>
+        <p>攻擊來源國家：${translateCountryName(attacker.country)}</p>
+        <p>防禦結果：<span class="${outcomeClass}">${outcome}</span></p>
+        <p>原因：${getDefenseOutcomeReason(success, attackType, defenseType)}</p>
+      `;
+      updateLog({summary: defenseSummary, details: defenseDetails}, false);
+
+      document.getElementById('defense-options').style.display = 'none';
+
+      currentAttack = null;
+
+      displayDefenseAnimation(defender.point, attacker.point);
+    }
+
+    function calculateDefenseSuccess(attackType, defenseType) {
+      const successRate = {
+        "DDoS": { "流量過濾": 0.8, "輸入驗證": 0.3, "內容安全策略": 0.4, "記憶體保護": 0.2, "安全意識培訓": 0.1 },
+        "SQL注入": { "流量過濾": 0.3, "輸入驗證": 0.9, "內容安全策略": 0.6, "記憶體保護": 0.2, "安全意識培訓": 0.4 },
+        "跨站腳本攻擊": { "流量過濾": 0.4, "輸入驗證": 0.7, "內容安全策略": 0.9, "記憶體保護": 0.3, "安全意識培訓": 0.5 },
+        "緩衝區溢出": { "流量過濾": 0.2, "輸入驗證": 0.5, "內容安全策略": 0.3, "記憶體保護": 0.9, "安全意識培訓": 0.2 },
+        "社會工程": { "流量過濾": 0.1, "輸入驗證": 0.2, "內容安全策略": 0.3, "記憶體保護": 0.1, "安全意識培訓": 0.8 }
+      };
+
+      const rate = successRate[attackType][defenseType] || 0.5;
+      return Math.random() < rate;
+    }
+
+    function displayDefenseAnimation(from, to) {
+      const defendLine = svg.append("path")
+        .attr("class", "defend-line")
+        .attr("d", `M${from[0]},${from[1]} L${to[0]},${to[1]}`)
+        .attr("stroke-dasharray", "5,5")
+        .attr("stroke-dashoffset", 0);
+
+      defendLine.transition()
+        .duration(1500)
+        .attrTween("stroke-dashoffset", function() {
+          const l = this.getTotalLength();
+          return d3.interpolateNumber(l, 0);
+        });
+
+      const ripple = svg.append("circle")
+        .attr("cx", from[0])
+        .attr("cy", from[1])
+        .attr("r", 0)
+        .attr("fill", "none")
+        .attr("stroke", "#3333ff")
+        .attr("stroke-width", 2)
+        .attr("opacity", 1);
+
+      ripple.transition()
+        .duration(1500)
+        .attr("r", 50)
+        .attr("opacity", 0)
+        .on("end", () => ripple.remove());
+
+      setTimeout(() => {
+        defendLine.remove();
+        svg.selectAll(".team-marker").remove();
+        svg.selectAll(".country-label").remove();
+      }, 2000);
+    }
+
+    function addScanningEffect() {
+      const scanner = svg.append("line")
+        .attr("x1", 0)
+        .attr("y1", 0)
+        .attr("x2", 0)
+        .attr("y2", height)
+        .attr("stroke", "#00ffff")
+        .attr("stroke-width", 2)
+        .attr("opacity", 0.5);
+
+      function scan() {
+        scanner
+          .attr("x1", -10)
+          .attr("x2", -10)
+          .transition()
+          .duration(3000)
+          .ease(d3.easeLinear)
+          .attr("x1", width + 10)
+          .attr("x2", width + 10)
+          .on("end", scan);
+      }
+
+      scan();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      updateDefenseScore();
+    });
+
+    const generateRandomIP = () => {
+      return Array(4).fill(0).map(() => Math.floor(Math.random() * 256)).join('.');
+    };
+  </script>
+</body>
+</html>
